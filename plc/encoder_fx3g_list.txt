@@ -3,7 +3,7 @@ DMOV    C251    D32
 EI
 LDD<=   D200    K0
 DMOV    K1000   D200
-LDD=    D204    K0
+LDD<=   D204    K0
 DMOV    K100    D216
 DFLT    D216    D204
 LD      M400
@@ -23,21 +23,215 @@ DFLT    D0      D52
 DEDIV   D52     D50     D54
 DEMUL   D54     D204    D56
 DEADD   D56     D206    D10
-LD      M8000
 DFLT    D30     D60
 DEDIV   D60     D50     D62
 DEMUL   D62     K1200   D20
 DEMUL   D20     D204    D22
+LD      M8000
+DESUB   D220    D226    D340
+DESUB   D220    D224    D342
+DESUB   K0      D222    D348
+DEADD   D348    D226    D344
+DEADD   D348    D224    D346
+DESUB   K0      D236    D338
+DEADD   D220    D222    D244
+LD      M8000
+DMOV    D340    D330
+CALL    P0
+DMOV    D332    D300
+DMOV    D342    D330
+CALL    P0
+DMOV    D332    D302
+DMOV    D344    D330
+CALL    P0
+DMOV    D332    D304
+DMOV    D346    D330
+CALL    P0
+DMOV    D332    D306
+DMOV    D234    D330
+CALL    P0
+DMOV    D332    D308
+DMOV    D338    D330
+CALL    P0
+DMOV    D332    D310
+LD      M8000
+DECMP   D342    D346    M63
+DECMP   D220    D234    M66
+DECMP   D222    D236    M69
+LDI     M63
+OR      M66
+OR      M69
+ORD<    D220    K0
+ORD<    D222    K0
+ORD<    D224    K0
+ORD<    D226    K0
+OUT     M52
+LDI     X005
+SET     M54
+LDI     X006
+AND     M100
+SET     M55
+LDI     X007
+AND     M100
+SET     M56
+LD      Y000
+OR      Y001
+ANDD=   D30     K0
+OUT     T10     K10
+LD      T10
+SET     M57
+LD      Y000
+ANDD<   D30     K-2
+LD      Y001
+ANDD>   D30     K2
+ORB
+OUT     T11     K30
+LD      T11
+SET     M58
+LDP     M51
+ZRST    M54     M58
+LD      M54
+OR      M55
+OR      M56
+OR      M57
+OR      M58
+OUT     M50
+LDI     M50
+ANI     M52
+AND     M24
+AND     X004
+AND     X006
+AND     X007
+OUT     M43
+LDI     X004
+OR      M41
+OR      M50
+OR      M52
+ZRST    M100    M104
+LDP     X003
+ORP     M40
+AND     M43
+ANI     M100
+MPS
+ANDD>=  D0      D302
+SET     M102
+MRD
+ANDD<   D0      D302
+SET     M101
+MPP
+SET     M100
+DMOV    D0      D320
+DMOV    D0      D322
+LD      M101
+ANDD>=  D0      D300
+SET     M103
+RST     M101
+DINC    D240
+LD      M103
+OUT     T0      D228
+LD      M103
+AND     T0
+SET     M102
+RST     M103
+LD      M102
+ANDD<=  D0      D304
+SET     M104
+RST     M102
+DINC    D240
+LD      M104
+OUT     T1      D228
+LD      M104
+AND     T1
+SET     M101
+RST     M104
+LD      M100
+ANDD>   D0      D320
+DMOV    D0      D320
+LD      M100
+ANDD<   D0      D322
+DMOV    D0      D322
+LDP     M101
+DFLT    D322    D350
+DEDIV   D350    D50     D350
+DEMUL   D350    D204    D350
+DEADD   D350    D206    D326
+DMOV    D0      D322
+LDP     M102
+DFLT    D320    D350
+DEDIV   D350    D50     D350
+DEMUL   D350    D204    D350
+DEADD   D350    D206    D324
+DMOV    D0      D320
+LDP     M48
+DMOV    K0      D240
+LD      M44
+ANI     M45
+ANI     M100
+ANI     M50
+AND     X004
+AND     X006
+LDI     M24
+ORD<    D0      D308
+ANB
+OUT     M46
+LD      M45
+ANI     M44
+ANI     M100
+ANI     M50
+AND     X004
+AND     X007
+LDI     M24
+ORD>    D0      D310
+ANB
+OUT     M47
+LD      M101
+OR      M46
+AND     X006
+AND     X004
+ANI     M50
+ANI     Y001
+OUT     Y000
+LD      M102
+OR      M47
+AND     X007
+AND     X004
+ANI     M50
+ANI     Y000
+OUT     Y001
+LD      M101
+ANDD<   D0      D302
+LD      M102
+ANDD>   D0      D306
+ORB
+OUT     Y002
+LD      Y000
+OR      Y001
+ANI     Y002
+OUT     Y003
 LDP     M10
+ANI     M100
+ANI     Y000
+ANI     Y001
 DMOV    K0      D214
 SET     M12
 LDP     M11
+ANI     M100
+ANI     Y000
+ANI     Y001
 DMOV    D208    D214
 SET     M12
 LDP     M22
+ANI     M100
 SET     M20
 RST     M21
 FEND
+P0
+LD      M8000
+DESUB   D330    D206    D334
+DEDIV   D334    D204    D334
+DEMUL   D334    D50     D334
+DINT    D334    D332
+SRET
 I650
 LD      M8000
 DMOV    C251    D34
@@ -47,6 +241,7 @@ LD      M12
 RST     C251
 DMOV    K0      D32
 DMOV    D214    D206
+SET     M24
 RST     M12
 IRET
 I201
@@ -55,6 +250,7 @@ RST     C251
 DMOV    K0      D32
 DMOV    D208    D206
 SET     M21
+SET     M24
 RST     M20
 IRET
 END

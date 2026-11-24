@@ -1,34 +1,82 @@
 Device,Type,Direction,Comment
 X000,Bit,Input,Encoder phase A
 X001,Bit,Input,Encoder phase B
-X002,Bit,Input,Encoder Z (index) pulse - optional
+X002,Bit,Input,Encoder Z (index) pulse - optional homing
+X003,Bit,Input,Start pushbutton (NO)
+X004,Bit,Input,Stop pushbutton (NC - ON when not pressed)
+X005,Bit,Input,E-stop / drive healthy (NC chain - ON when healthy)
+X006,Bit,Input,Forward overtravel limit switch (NC - ON when clear)
+X007,Bit,Input,Reverse overtravel limit switch (NC - ON when clear)
+Y000,Bit,Output,VFD FORWARD run (STF)
+Y001,Bit,Output,VFD REVERSE run (STR)
+Y002,Bit,Output,VFD FAST speed select (RH)
+Y003,Bit,Output,VFD SLOW speed select (RL)
 C251,32-bit counter,Internal,High-speed counter 2-phase A/B
+T0,Timer 100ms,Internal,Dwell at forward end
+T1,Timer 100ms,Internal,Dwell at reverse end
+T10,Timer 100ms,Internal,Stall / encoder fault delay (1.0 s)
+T11,Timer 100ms,Internal,Wrong direction delay (3.0 s)
 D0,32-bit signed,PLC->GOT,Raw encoder count
-D10,32-bit real,PLC->GOT,Position (engineering units)
+D10,32-bit real,PLC->GOT,POSITION (0 = centre of fold)
 D20,32-bit real,PLC->GOT,Speed RPM
 D22,32-bit real,PLC->GOT,Linear speed (units/min)
-D30,32-bit signed,Internal,Counts in last 50 ms (written by I650)
+D30,32-bit signed,Internal,Counts moved in last 50 ms (I650)
 D32,32-bit signed,Internal,Previous count sample
 D34,32-bit signed,Internal,Count snapshot
 D50,32-bit real,Internal,Counts per revolution
-D52,32-bit real,Internal,Count as float
 D54,32-bit real,PLC->GOT,Revolutions
-D56,32-bit real,Internal,Distance since zero
-D60,32-bit real,Internal,Delta count as float
-D62,32-bit real,Internal,Revs per 50 ms
-D200,32-bit signed,GOT->PLC,SETTING Pulses per revolution (latched)
-D204,32-bit real,GOT->PLC,SETTING Distance per revolution (latched)
-D206,32-bit real,Internal,Position offset (latched)
-D208,32-bit real,GOT->PLC,SETTING Preset / home position value (latched)
+D200,32-bit signed,GOT->PLC,SETUP Encoder pulses per rev
+D204,32-bit real,GOT->PLC,SETUP Distance per motor rev (must be > 0)
+D206,32-bit real,Internal,Position offset
+D208,32-bit real,GOT->PLC,SETUP Home position value (position at Z / preset)
 D214,32-bit real,Internal,Pending offset for zero/preset
-D216,32-bit signed,Internal,Scratch for default value
-M10,Bit,GOT->PLC,ZERO button (momentary)
+D216,32-bit signed,Internal,Scratch
+D220,32-bit real,GOT->PLC,OPERATOR Forward travel from centre
+D222,32-bit real,GOT->PLC,OPERATOR Reverse travel from centre
+D224,32-bit real,GOT->PLC,SETUP Slowdown distance before each end
+D226,32-bit real,GOT->PLC,SETUP Overrun compensation (stop early by)
+D228,16-bit signed,GOT->PLC,SETUP Dwell at each end (0.1 s units)
+D234,32-bit real,GOT->PLC,SETUP Max forward travel (soft limit)
+D236,32-bit real,GOT->PLC,SETUP Max reverse travel (soft limit)
+D240,32-bit signed,PLC->GOT,Pass counter
+D244,32-bit real,PLC->GOT,Total fold width (fwd + rev)
+D300,32-bit signed,Internal,Fwd stop point (counts)
+D302,32-bit signed,Internal,Fwd slowdown point (counts)
+D304,32-bit signed,Internal,Rev stop point (counts)
+D306,32-bit signed,Internal,Rev slowdown point (counts)
+D308,32-bit signed,Internal,Soft max (counts)
+D310,32-bit signed,Internal,Soft min (counts)
+D320,32-bit signed,Internal,Highest count this pass
+D322,32-bit signed,Internal,Lowest count this pass
+D324,32-bit real,PLC->GOT,ACTUAL forward turn-round position
+D326,32-bit real,PLC->GOT,ACTUAL reverse turn-round position
+D330-D350,32-bit real,Internal,Scratch for calculations
+M10,Bit,GOT->PLC,ZERO button - sets centre here (momentary)
 M11,Bit,GOT->PLC,PRESET button (momentary)
 M12,Bit,Internal,Counter reset request (handled in I650)
 M20,Bit,PLC->GOT,Z homing armed lamp
-M21,Bit,PLC->GOT,Homed lamp
+M21,Bit,PLC->GOT,Homed on Z lamp
 M22,Bit,GOT->PLC,HOME ON Z button (momentary)
-M30,Bit,PLC->GOT,Direction lamp (ON = reverse)
-M400,Bit,GOT->PLC,SETTING 4x counting (alternate switch - latched)
-M8198,Bit,Special,4-edge count for C251
-M8251,Bit,Special,C251 direction monitor
+M24,Bit,PLC->GOT,Position referenced lamp
+M30,Bit,PLC->GOT,Count going down lamp
+M40,Bit,GOT->PLC,START button (momentary)
+M41,Bit,GOT->PLC,STOP button (momentary)
+M43,Bit,PLC->GOT,READY lamp
+M44,Bit,GOT->PLC,JOG FWD (momentary - hold to run)
+M45,Bit,GOT->PLC,JOG REV (momentary - hold to run)
+M48,Bit,GOT->PLC,Reset pass counter (momentary)
+M50,Bit,PLC->GOT,ANY FAULT
+M51,Bit,GOT->PLC,FAULT RESET (momentary)
+M52,Bit,PLC->GOT,SETTINGS INVALID
+M54,Bit,PLC->GOT,Fault: E-stop / drive fault
+M55,Bit,PLC->GOT,Fault: forward overtravel
+M56,Bit,PLC->GOT,Fault: reverse overtravel
+M57,Bit,PLC->GOT,Fault: stall / encoder not counting
+M58,Bit,PLC->GOT,Fault: wrong direction (check A/B wiring)
+M63-M71,Bit,Internal,Float compare results
+M100,Bit,PLC->GOT,AUTO RUNNING
+M101,Bit,Internal,Moving forward
+M102,Bit,Internal,Moving reverse
+M103,Bit,Internal,Dwell at forward end
+M104,Bit,Internal,Dwell at reverse end
+M400,Bit,GOT->PLC,SETUP 4x counting (alternate - latched)

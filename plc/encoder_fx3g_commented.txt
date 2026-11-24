@@ -1,101 +1,331 @@
 ; =====================================================================
-;  FX3G  -  Incremental encoder -> GOT2000
-;  Instruction List (IL).  Lines starting with ';' are comments only.
+;  FX3G  -  Pastry laminator FOLDING UNIT (reciprocating motor)
+;  Encoder position -> GOT2000, operator sets travel each way.
+;
+;  Instruction List (IL). Lines starting with ';' are comments only.
 ;  A clean, comment-free copy for typing in is in encoder_fx3g_list.txt
 ;
-;  Encoder: A = X000, B = X001, Z (optional) = X002
-;  Counter: C251 (2-phase quadrature, 32-bit hardware counter)
+;  INPUTS                              OUTPUTS (to inverter / VFD)
+;  X000 Encoder A                      Y000 FORWARD run   (VFD STF)
+;  X001 Encoder B                      Y001 REVERSE run   (VFD STR)
+;  X002 Encoder Z (optional homing)    Y002 FAST speed    (VFD RH)
+;  X003 Start pushbutton (NO)          Y003 SLOW speed    (VFD RL)
+;  X004 Stop pushbutton (NC)
+;  X005 E-stop / drive healthy (NC chain, ON = healthy)
+;  X006 Forward overtravel limit (NC, ON = clear)
+;  X007 Reverse overtravel limit (NC, ON = clear)
+;
+;  Position 0 = centre of the fold. The operator enters
+;     D220 forward travel  (e.g. 300.0 mm  -> turns round at +300)
+;     D222 reverse travel  (e.g. 300.0 mm  -> turns round at -300)
 ; =====================================================================
 
 ; ---------- Rung 1: first scan - stop a false speed spike at power-up
-LD      M8002                   ; ON for the first scan only
-DMOV    C251    D32             ; previous-sample = current count
+LD      M8002
+DMOV    C251    D32
 
 ; ---------- Rung 2: enable interrupts (I650 speed sample, I201 Z pulse)
 EI
 
-; ---------- Rung 3: default settings if they have never been set
-LDD<=   D200    K0              ; pulses/rev not valid?
+; ---------- Rung 3: default scaling if never set
+LDD<=   D200    K0              ; pulses/rev invalid?
 DMOV    K1000   D200            ;  -> 1000 PPR
-LDD=    D204    K0              ; distance/rev = 0.0 ?
-DMOV    K100    D216            ;  -> 100
-DFLT    D216    D204            ;  -> 100.0 units per rev
+LDD<=   D204    K0              ; distance/rev <= 0.0 ?
+DMOV    K100    D216
+DFLT    D216    D204            ;  -> 100.0 per rev
 
 ; ---------- Rung 4: high-speed counter
-LD      M400                    ; GOT switch: 4x (4-edge) counting
-OUT     M8198                   ; 4-edge count for C251/C252/C254
-LD      M8000                   ; always ON
-OUT     C251    K2147483647     ; HSC: A=X000, B=X001 (keeps counting)
-
-; ---------- Rung 5: copy raw count + direction for the GOT
+LD      M400                    ; 4x counting
+OUT     M8198
 LD      M8000
-DMOV    C251    D0              ; D0/D1  raw count (32-bit signed)
-LD      M8251                   ; C251 direction (ON = counting down)
-OUT     M30                     ; GOT lamp: reverse
+OUT     C251    K2147483647     ; A = X000, B = X001
+
+; ---------- Rung 5: read counter (D0 is used by every rung below)
+LD      M8000
+DMOV    C251    D0              ; raw count
+LD      M8251
+OUT     M30                     ; lamp: count going down
 
 ; ---------- Rung 6: counts per revolution (float)
 LD      M8000
-DFLT    D200    D50             ; D50 = PPR as float
+DFLT    D200    D50
 LD      M400
-DEMUL   D50     K4      D50     ; x4 when 4-edge counting is ON
+DEMUL   D50     K4      D50
 
-; ---------- Rung 7: position
+; ---------- Rung 7: position + speed for the GOT
 LD      M8000
-DFLT    D0      D52             ; count -> float
-DEDIV   D52     D50     D54     ; D54 = revolutions (float)
-DEMUL   D54     D204    D56     ; D56 = distance since zero
-DEADD   D56     D206    D10     ; D10 = position = distance + offset
-
-; ---------- Rung 8: speed (D30 = counts in the last 50 ms, from I650)
-LD      M8000
+DFLT    D0      D52
+DEDIV   D52     D50     D54     ; D54 revolutions
+DEMUL   D54     D204    D56
+DEADD   D56     D206    D10     ; D10 POSITION
 DFLT    D30     D60
-DEDIV   D60     D50     D62     ; revs per 50 ms
-DEMUL   D62     K1200   D20     ; D20 = RPM   (60000 ms / 50 ms = 1200)
-DEMUL   D20     D204    D22     ; D22 = linear speed (units/min)
+DEDIV   D60     D50     D62
+DEMUL   D62     K1200   D20     ; D20 RPM
+DEMUL   D20     D204    D22     ; D22 linear speed /min
 
-; ---------- Rung 9: GOT "ZERO" button
-LDP     M10
-DMOV    K0      D214            ; pending offset = 0.0
-SET     M12                     ; ask I650 to reset the counter
+; ---------- Rung 8: turn-round points (float, position units)
+LD      M8000
+DESUB   D220    D226    D340    ; fwd STOP  = fwd travel - overrun comp
+DESUB   D220    D224    D342    ; fwd SLOW  = fwd travel - slowdown dist
+DESUB   K0      D222    D348    ; rev end   = -(rev travel)
+DEADD   D348    D226    D344    ; rev STOP  = rev end + overrun comp
+DEADD   D348    D224    D346    ; rev SLOW  = rev end + slowdown dist
+DESUB   K0      D236    D338    ; soft min  = -(max rev travel)
+DEADD   D220    D222    D244    ; D244 WIDTH shown on GOT
 
-; ---------- Rung 10: GOT "PRESET" button
-LDP     M11
-DMOV    D208    D214            ; pending offset = preset value
+; ---------- Rung 9: convert those points to encoder counts (sub P0)
+LD      M8000
+DMOV    D340    D330
+CALL    P0
+DMOV    D332    D300            ; D300 fwd stop   (counts)
+DMOV    D342    D330
+CALL    P0
+DMOV    D332    D302            ; D302 fwd slow   (counts)
+DMOV    D344    D330
+CALL    P0
+DMOV    D332    D304            ; D304 rev stop   (counts)
+DMOV    D346    D330
+CALL    P0
+DMOV    D332    D306            ; D306 rev slow   (counts)
+DMOV    D234    D330
+CALL    P0
+DMOV    D332    D308            ; D308 soft max   (counts)
+DMOV    D338    D330
+CALL    P0
+DMOV    D332    D310            ; D310 soft min   (counts)
+
+; ---------- Rung 10: settings check  (M52 ON = settings invalid)
+LD      M8000
+DECMP   D342    D346    M63     ; M63: fwd slow point > rev slow point
+DECMP   D220    D234    M66     ; M66: fwd travel > max fwd travel
+DECMP   D222    D236    M69     ; M69: rev travel > max rev travel
+LDI     M63
+OR      M66
+OR      M69
+ORD<    D220    K0              ; negative values not allowed
+ORD<    D222    K0
+ORD<    D224    K0
+ORD<    D226    K0
+OUT     M52
+
+; ---------- Rung 11: faults (latched until FAULT RESET on GOT)
+LDI     X005                    ; E-stop / drive fault
+SET     M54
+LDI     X006                    ; fwd overtravel hit in AUTO
+AND     M100
+SET     M55
+LDI     X007                    ; rev overtravel hit in AUTO
+AND     M100
+SET     M56
+LD      Y000                    ; motor commanded but encoder not moving
+OR      Y001
+ANDD=   D30     K0
+OUT     T10     K10             ; 1.0 s
+LD      T10
+SET     M57                     ; stall / encoder fault
+LD      Y000                    ; forward commanded, count going down
+ANDD<   D30     K-2
+LD      Y001                    ; reverse commanded, count going up
+ANDD>   D30     K2
+ORB
+OUT     T11     K30             ; 3.0 s (must be > VFD decel time)
+LD      T11
+SET     M58                     ; wrong direction (A/B or motor wiring)
+LDP     M51                     ; GOT: FAULT RESET
+ZRST    M54     M58
+LD      M54
+OR      M55
+OR      M56
+OR      M57
+OR      M58
+OUT     M50                     ; M50 ANY FAULT
+
+; ---------- Rung 12: ready to start
+LDI     M50
+ANI     M52                     ; settings valid
+AND     M24                     ; position referenced (zeroed / homed)
+AND     X004                    ; stop button not pressed
+AND     X006
+AND     X007
+OUT     M43                     ; M43 READY lamp
+
+; ---------- Rung 13: stop auto
+LDI     X004                    ; stop pushbutton
+OR      M41                     ; GOT STOP
+OR      M50                     ; any fault
+OR      M52                     ; settings became invalid
+ZRST    M100    M104
+
+; ---------- Rung 14: start auto - head away from the nearer end
+LDP     X003                    ; start pushbutton
+ORP     M40                     ; GOT START
+AND     M43
+ANI     M100
+MPS
+ANDD>=  D0      D302            ; already near fwd end -> go reverse
+SET     M102
+MRD
+ANDD<   D0      D302            ; otherwise go forward
+SET     M101
+MPP
+SET     M100                    ; M100 AUTO RUNNING
+DMOV    D0      D320
+DMOV    D0      D322
+
+; ---------- Rung 15: cycle sequence
+;   M101 moving fwd -> M103 dwell -> M102 moving rev -> M104 dwell -> M101
+LD      M101
+ANDD>=  D0      D300            ; reached fwd stop point
+SET     M103
+RST     M101
+DINC    D240                    ; pass counter
+LD      M103
+OUT     T0      D228            ; dwell (0.1 s units, 0 = none)
+LD      M103
+AND     T0
+SET     M102
+RST     M103
+LD      M102
+ANDD<=  D0      D304            ; reached rev stop point
+SET     M104
+RST     M102
+DINC    D240
+LD      M104
+OUT     T1      D228
+LD      M104
+AND     T1
+SET     M101
+RST     M104
+
+; ---------- Rung 16: record where it ACTUALLY turned round (for tuning)
+LD      M100                    ; track highest / lowest count
+ANDD>   D0      D320
+DMOV    D0      D320
+LD      M100
+ANDD<   D0      D322
+DMOV    D0      D322
+LDP     M101                    ; new forward pass: store last rev end
+DFLT    D322    D350
+DEDIV   D350    D50     D350
+DEMUL   D350    D204    D350
+DEADD   D350    D206    D326    ; D326 ACTUAL rev turn-round position
+DMOV    D0      D322
+LDP     M102                    ; new reverse pass: store last fwd end
+DFLT    D320    D350
+DEDIV   D350    D50     D350
+DEMUL   D350    D204    D350
+DEADD   D350    D206    D324    ; D324 ACTUAL fwd turn-round position
+DMOV    D0      D320
+LDP     M48                     ; GOT: reset pass counter
+DMOV    K0      D240
+
+; ---------- Rung 17: jog (GOT hold-to-run). Soft limits once referenced.
+LD      M44                     ; JOG FWD
+ANI     M45
+ANI     M100
+ANI     M50
+AND     X004
+AND     X006
+LDI     M24
+ORD<    D0      D308
+ANB
+OUT     M46
+LD      M45                     ; JOG REV
+ANI     M44
+ANI     M100
+ANI     M50
+AND     X004
+AND     X007
+LDI     M24
+ORD>    D0      D310
+ANB
+OUT     M47
+
+; ---------- Rung 18: motor outputs
+LD      M101
+OR      M46
+AND     X006                    ; fwd overtravel clear
+AND     X004
+ANI     M50
+ANI     Y001                    ; never both directions
+OUT     Y000                    ; FORWARD
+LD      M102
+OR      M47
+AND     X007
+AND     X004
+ANI     M50
+ANI     Y000
+OUT     Y001                    ; REVERSE
+LD      M101                    ; fast until the slowdown point
+ANDD<   D0      D302
+LD      M102
+ANDD>   D0      D306
+ORB
+OUT     Y002                    ; FAST
+LD      Y000
+OR      Y001
+ANI     Y002
+OUT     Y003                    ; SLOW (approach + jog)
+
+; ---------- Rung 19: GOT ZERO / PRESET / HOME (only when stopped)
+LDP     M10                     ; ZERO -> here = centre (0.0)
+ANI     M100
+ANI     Y000
+ANI     Y001
+DMOV    K0      D214
 SET     M12
-
-; ---------- Rung 11: GOT "HOME ON Z" button (arm Z-pulse homing)
-LDP     M22
-SET     M20                     ; armed - I201 acts on next Z pulse
-RST     M21                     ; not homed yet
+LDP     M11                     ; PRESET -> here = D208
+ANI     M100
+ANI     Y000
+ANI     Y001
+DMOV    D208    D214
+SET     M12
+LDP     M22                     ; HOME ON Z: arm, then jog over Z
+ANI     M100
+SET     M20
+RST     M21
 
 FEND
 
 ; =====================================================================
-;  I650 - timer interrupt every 50 ms: speed sample + counter reset
-;  Resetting here keeps the speed sample and reset in step, so there is no spike.
+;  P0 - position (float D330) -> encoder count (32-bit D332)
+;       count = (pos - offset) / dist_per_rev * counts_per_rev
+; =====================================================================
+P0
+LD      M8000
+DESUB   D330    D206    D334
+DEDIV   D334    D204    D334
+DEMUL   D334    D50     D334
+DINT    D334    D332
+SRET
+
+; =====================================================================
+;  I650 - every 50 ms: speed sample + zero/preset counter reset
 ; =====================================================================
 I650
 LD      M8000
-DMOV    C251    D34             ; snapshot
-DSUB    D34     D32     D30     ; D30 = counts in the last 50 ms
-DMOV    D34     D32             ; previous = snapshot
-LD      M12                     ; zero / preset requested?
+DMOV    C251    D34
+DSUB    D34     D32     D30     ; counts moved in last 50 ms
+DMOV    D34     D32
+LD      M12
 RST     C251
 DMOV    K0      D32
-DMOV    D214    D206            ; apply new offset
+DMOV    D214    D206
+SET     M24                     ; position referenced
 RST     M12
 IRET
 
 ; =====================================================================
-;  I201 - X002 rising edge (encoder Z pulse): homing
+;  I201 - X002 rising (encoder Z pulse): homing
 ; =====================================================================
 I201
-LD      M20                     ; only when armed
+LD      M20
 RST     C251
 DMOV    K0      D32
-DMOV    D208    D206            ; position at Z = preset value
-SET     M21                     ; homed
-RST     M20                     ; disarm
+DMOV    D208    D206            ; position at Z = D208
+SET     M21
+SET     M24
+RST     M20
 IRET
 
 END
