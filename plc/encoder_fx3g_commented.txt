@@ -1,0 +1,101 @@
+; =====================================================================
+;  FX3G  -  Incremental encoder -> GOT2000
+;  Instruction List (IL).  Lines starting with ';' are comments only.
+;  A clean, comment-free copy for typing in is in encoder_fx3g_list.txt
+;
+;  Encoder: A = X000, B = X001, Z (optional) = X002
+;  Counter: C251 (2-phase quadrature, 32-bit hardware counter)
+; =====================================================================
+
+; ---------- Rung 1: first scan - stop a false speed spike at power-up
+LD      M8002                   ; ON for the first scan only
+DMOV    C251    D32             ; previous-sample = current count
+
+; ---------- Rung 2: enable interrupts (I650 speed sample, I201 Z pulse)
+EI
+
+; ---------- Rung 3: default settings if they have never been set
+LDD<=   D200    K0              ; pulses/rev not valid?
+DMOV    K1000   D200            ;  -> 1000 PPR
+LDD=    D204    K0              ; distance/rev = 0.0 ?
+DMOV    K100    D216            ;  -> 100
+DFLT    D216    D204            ;  -> 100.0 units per rev
+
+; ---------- Rung 4: high-speed counter
+LD      M400                    ; GOT switch: 4x (4-edge) counting
+OUT     M8198                   ; 4-edge count for C251/C252/C254
+LD      M8000                   ; always ON
+OUT     C251    K2147483647     ; HSC: A=X000, B=X001 (keeps counting)
+
+; ---------- Rung 5: copy raw count + direction for the GOT
+LD      M8000
+DMOV    C251    D0              ; D0/D1  raw count (32-bit signed)
+LD      M8251                   ; C251 direction (ON = counting down)
+OUT     M30                     ; GOT lamp: reverse
+
+; ---------- Rung 6: counts per revolution (float)
+LD      M8000
+DFLT    D200    D50             ; D50 = PPR as float
+LD      M400
+DEMUL   D50     K4      D50     ; x4 when 4-edge counting is ON
+
+; ---------- Rung 7: position
+LD      M8000
+DFLT    D0      D52             ; count -> float
+DEDIV   D52     D50     D54     ; D54 = revolutions (float)
+DEMUL   D54     D204    D56     ; D56 = distance since zero
+DEADD   D56     D206    D10     ; D10 = position = distance + offset
+
+; ---------- Rung 8: speed (D30 = counts in the last 50 ms, from I650)
+LD      M8000
+DFLT    D30     D60
+DEDIV   D60     D50     D62     ; revs per 50 ms
+DEMUL   D62     K1200   D20     ; D20 = RPM   (60000 ms / 50 ms = 1200)
+DEMUL   D20     D204    D22     ; D22 = linear speed (units/min)
+
+; ---------- Rung 9: GOT "ZERO" button
+LDP     M10
+DMOV    K0      D214            ; pending offset = 0.0
+SET     M12                     ; ask I650 to reset the counter
+
+; ---------- Rung 10: GOT "PRESET" button
+LDP     M11
+DMOV    D208    D214            ; pending offset = preset value
+SET     M12
+
+; ---------- Rung 11: GOT "HOME ON Z" button (arm Z-pulse homing)
+LDP     M22
+SET     M20                     ; armed - I201 acts on next Z pulse
+RST     M21                     ; not homed yet
+
+FEND
+
+; =====================================================================
+;  I650 - timer interrupt every 50 ms: speed sample + counter reset
+;  Resetting here keeps the speed sample and reset in step, so there is no spike.
+; =====================================================================
+I650
+LD      M8000
+DMOV    C251    D34             ; snapshot
+DSUB    D34     D32     D30     ; D30 = counts in the last 50 ms
+DMOV    D34     D32             ; previous = snapshot
+LD      M12                     ; zero / preset requested?
+RST     C251
+DMOV    K0      D32
+DMOV    D214    D206            ; apply new offset
+RST     M12
+IRET
+
+; =====================================================================
+;  I201 - X002 rising edge (encoder Z pulse): homing
+; =====================================================================
+I201
+LD      M20                     ; only when armed
+RST     C251
+DMOV    K0      D32
+DMOV    D208    D206            ; position at Z = preset value
+SET     M21                     ; homed
+RST     M20                     ; disarm
+IRET
+
+END

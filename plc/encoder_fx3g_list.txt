@@ -1,0 +1,60 @@
+LD      M8002
+DMOV    C251    D32
+EI
+LDD<=   D200    K0
+DMOV    K1000   D200
+LDD=    D204    K0
+DMOV    K100    D216
+DFLT    D216    D204
+LD      M400
+OUT     M8198
+LD      M8000
+OUT     C251    K2147483647
+LD      M8000
+DMOV    C251    D0
+LD      M8251
+OUT     M30
+LD      M8000
+DFLT    D200    D50
+LD      M400
+DEMUL   D50     K4      D50
+LD      M8000
+DFLT    D0      D52
+DEDIV   D52     D50     D54
+DEMUL   D54     D204    D56
+DEADD   D56     D206    D10
+LD      M8000
+DFLT    D30     D60
+DEDIV   D60     D50     D62
+DEMUL   D62     K1200   D20
+DEMUL   D20     D204    D22
+LDP     M10
+DMOV    K0      D214
+SET     M12
+LDP     M11
+DMOV    D208    D214
+SET     M12
+LDP     M22
+SET     M20
+RST     M21
+FEND
+I650
+LD      M8000
+DMOV    C251    D34
+DSUB    D34     D32     D30
+DMOV    D34     D32
+LD      M12
+RST     C251
+DMOV    K0      D32
+DMOV    D214    D206
+RST     M12
+IRET
+I201
+LD      M20
+RST     C251
+DMOV    K0      D32
+DMOV    D208    D206
+SET     M21
+RST     M20
+IRET
+END

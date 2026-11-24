@@ -1,0 +1,34 @@
+Device,Type,Direction,Comment
+X000,Bit,Input,Encoder phase A
+X001,Bit,Input,Encoder phase B
+X002,Bit,Input,Encoder Z (index) pulse - optional
+C251,32-bit counter,Internal,High-speed counter 2-phase A/B
+D0,32-bit signed,PLC->GOT,Raw encoder count
+D10,32-bit real,PLC->GOT,Position (engineering units)
+D20,32-bit real,PLC->GOT,Speed RPM
+D22,32-bit real,PLC->GOT,Linear speed (units/min)
+D30,32-bit signed,Internal,Counts in last 50 ms (written by I650)
+D32,32-bit signed,Internal,Previous count sample
+D34,32-bit signed,Internal,Count snapshot
+D50,32-bit real,Internal,Counts per revolution
+D52,32-bit real,Internal,Count as float
+D54,32-bit real,PLC->GOT,Revolutions
+D56,32-bit real,Internal,Distance since zero
+D60,32-bit real,Internal,Delta count as float
+D62,32-bit real,Internal,Revs per 50 ms
+D200,32-bit signed,GOT->PLC,SETTING Pulses per revolution (latched)
+D204,32-bit real,GOT->PLC,SETTING Distance per revolution (latched)
+D206,32-bit real,Internal,Position offset (latched)
+D208,32-bit real,GOT->PLC,SETTING Preset / home position value (latched)
+D214,32-bit real,Internal,Pending offset for zero/preset
+D216,32-bit signed,Internal,Scratch for default value
+M10,Bit,GOT->PLC,ZERO button (momentary)
+M11,Bit,GOT->PLC,PRESET button (momentary)
+M12,Bit,Internal,Counter reset request (handled in I650)
+M20,Bit,PLC->GOT,Z homing armed lamp
+M21,Bit,PLC->GOT,Homed lamp
+M22,Bit,GOT->PLC,HOME ON Z button (momentary)
+M30,Bit,PLC->GOT,Direction lamp (ON = reverse)
+M400,Bit,GOT->PLC,SETTING 4x counting (alternate switch - latched)
+M8198,Bit,Special,4-edge count for C251
+M8251,Bit,Special,C251 direction monitor
